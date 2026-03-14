@@ -46,3 +46,4 @@ uv run pytest
 ```
 
 The notebook is configured to run automatically as a test in `[tool.pytest.ini_options]`.
+ngp comment: the test requires "MSS1A_TEST_VFM_L2_MAG_SCI-LR_20240101T000000_20240106T235959.cdf" to be present. Currently it fails
