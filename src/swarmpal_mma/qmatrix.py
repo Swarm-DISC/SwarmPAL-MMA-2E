@@ -8,9 +8,13 @@ Created on Fri Nov  1 15:57:46 2024
 
 import numpy as np
 # import pandas as pd
+import chaosmagpy as cp
+
 import xarray as xr
 import h5py
 import statsmodels.api as sm
+
+
 
 
 from swarmpal_mma.utils.SHA_utils import SHA_coeff_index_to_nm
@@ -79,23 +83,39 @@ def estimate_SH_coefficients_1D(data,params):
     kernel_length = np.round(params.n_lag_days / paramsdt)
     
 
-    ds_t=t1 #+(paramsdt/2)
+    #ds_t=t1 #+(paramsdt/2)
+    ds_t=cp.data_utils.timestamp(t1)
+
     
     Lm=len(terms_e)
     nan_array=np.empty(n_bins)
     nan_array[:]=np.nan
     
-    da=xr.Dataset({"qs":([n_bins,Lm],np.zeros([n_bins, Lm])),
-                  "gh":([n_bins,Lm],np.zeros([n_bins, Lm])),
-                  "R2_e":np.zeros(n_bins),
-                  "R2_i":np.zeros(n_bins),
-                  "data_per_bin":nan_array.copy(),
-                  "Cm_cond_e":nan_array.copy(),
-                  "Cm_cond_i":nan_array.copy(),
-                  "MSER_i":nan_array.copy(),
-                  "MSER_e":nan_array.copy()
-                  },coords={"time": ds_t})
-    
+    da = xr.Dataset(
+        data_vars = {
+            "qs": (("time", "Lm"), np.zeros([n_bins, Lm])),
+            "gh": (("time", "Lm"), np.zeros([n_bins, Lm])),
+            "R2_e": ("time", np.zeros(n_bins)),
+            "R2_i": ("time", np.zeros(n_bins)),
+            "data_per_bin": ("time", nan_array.copy()),
+            "Cm_cond_e":("time", nan_array.copy()),
+            "Cm_cond_i":("time", nan_array.copy()),
+            "MSER_i":("time", nan_array.copy()),
+            "MSER_e":("time", nan_array.copy()),
+        },
+        coords={"time": ("time", ds_t)}
+    )
+    da["qs"].attrs = {"units": "nT", "description": "Gauss coefficients for the inducing (external) magnetospheric field."}
+    da["gh"].attrs = {"units": "nT", "description": "Gauss coefficients for the induced (internal) magnetospheric field."}
+    da["R2_e"].attrs = {"units": "", "description": "Coefficient of determination of the fit of qs within the time window"}
+    da["R2_i"].attrs = {"units": "", "description": "Coefficient of determination of the fit of gh within the time window"}
+    da["data_per_bin"].attrs = {"units": "", "description": "Number of samples used for the fit"}
+    da["Cm_cond_e"].attrs = {"units": "", "description": ""}    
+    da["Cm_cond_i"].attrs = {"units": "", "description": ""}    
+    da["MSER_e"].attrs = {"units": "", "description": ""}
+    da["MSER_i"].attrs = {"units": "", "description": ""}
+
+
     for i in range(n_bins):
         if(np.mod(i, 100) == 0):
             print('Done '+str(i)+' out of '+str(n_bins)+'\n')
@@ -197,5 +217,6 @@ def estimate_SH_coefficients_1D(data,params):
             da.Cm_cond_i.data[i]=wls.condition_number
             da.MSER_i.data[i]=wls.mse_resid
         
+
     return da
 
