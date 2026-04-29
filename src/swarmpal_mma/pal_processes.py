@@ -26,7 +26,7 @@ class MMA_SHA_2E(PalProcess):
             measurement_varname=measurement_varname,
             model_varname=model_varname,
             delt=delt,
-
+            output_dataset="PAL_MMA_SHA_2E",
         )
 
 
@@ -98,5 +98,5 @@ class MMA_SHA_2E(PalProcess):
         params = MMA_2E_config.BasicConfig()
         params.fullreset()
         ds = MMA_2E_estimate_SH_coefficients_1D(df, params)
-        datatree["MMA_SHA_2E"] = xr.DataTree(ds)
+        datatree[self.output_dataset] = xr.DataTree(ds)
         return datatree
