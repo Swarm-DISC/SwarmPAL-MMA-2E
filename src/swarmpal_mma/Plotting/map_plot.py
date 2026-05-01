@@ -281,137 +281,87 @@ def _apply_projection(ax, projection_name, *,
 
     return new_ax
 
-def map_gauss(gauss,ax=None,cm=None,
-              vi='horz',cobar=True, movie=False,
+def map_gauss(gauss, ax=None, cm=None, vi='horz', cobar=True,
               proj="EqualEarth"):
     """
-    Plot a global surface centred on midnight.
-    
+    Plot a global surface centred on local midnight.
 
     Parameters
     ----------
-    gauss, an xarray with 
-        values : gauss coefficient len(gauss.values)= (ℓmax​+1)(2ℓmax​+1)
-        time:    xarray datetime coordinate
-    cm: colormap
-    vi: scalar field to plot options are
-            'rad'
-            'horiz'
-            'total'
-            'phi'
-            'theta'
-    cobar: logical value to plot a colorbar
-    proj: desired projection, current values:
-            "platecarree"
-            "robinson"
-            "equalearth"
-            "orthographic"      
+    gauss : xarray.DataArray
+        Gauss coefficients with a 'time' coordinate. Either 1-D
+        (single time, shape ``(n_coeffs,)``) or 2-D
+        (``(time, n_coeffs)`` — only the first time is plotted).
+        ``n_coeffs`` must equal ``lmax * (lmax + 2)``.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw into; replaced with a Cartopy GeoAxes
+        in the same position. If None, a new figure is created.
+    cm : str, optional
+        Colormap. Defaults to 'seismic' for signed components and
+        'viridis' for non-negative ones.
+    vi : str
+        Field component: 'rad', 'theta', 'phi', 'total', or 'horz'.
+    cobar : bool
+        Whether to draw a colorbar.
+    proj : str
+        Projection: 'platecarree', 'robinson', 'mollweide',
+        'equalearth', or 'orthographic'.
 
+    Returns
+    -------
+    matplotlib.contour.QuadContourSet
+        The contour artist.
     """
-    ext=gauss.values
-    lmax=int(round(-3 + np.sqrt(1 + 8*len(ext))) / 4)+1 
+    # Reduce to a single time slice if a series was supplied
+    if "time" in gauss.dims and gauss.sizes.get("time", 1) > 1:
+        gauss = gauss.isel(time=0)
 
-#    t = pd.to_datetime(gauss["time"].item()).to_pydatetime()
+    ext = np.asarray(gauss.values).ravel()
+    # Number of Gauss coefficients up to degree L is L*(L+2)
+    lmax = int(round(-1.0 + np.sqrt(1.0 + ext.size)))
 
-    hour=gauss["time"].dt.hour.data +\
-        gauss["time"].dt.minute.data / 60.0 + gauss["time"].dt.second.data / 3600.0
-#==================Make  th emovie here, calculate all frames here
-    #data,field,cl=getfield_from_grid(ext,lmax,vi)
-    
-    map,field,cl=_getfield_from_grid(gauss[0].values,lmax,vi)
-    data = np.empty((hour.size, lat.size, lon.size))
-    pydt = np.empty((hour.size))
+    data, field, cl = _getfield_from_grid(ext, lmax, vi)
 
+    t = pd.to_datetime(gauss["time"].item()).to_pydatetime()
+    hour = t.hour + t.minute / 60.0 + t.second / 3600.0
 
-    data[0,:,:] = map.values
-    lat         = map.lat
-    lon         = map.lon
+    if cm is None:
+        cm = 'seismic' if cl < 0 else 'viridis'
 
-    pydt[0] = pd.to_datetime(gauss["time"][0].item()).to_pydatetime()
-
-
-    # if movie:
-    #     for i, gauss_t in enumerate(gauss[1:]):
-            
-    #         map,,=_getfield_from_grid(gauss_t.values,lmax,vi)
-    #         pydt[i] = pd.to_datetime(gauss["time"][0].item()).to_pydatetime()
-    #         # compute spatial field
-    #         data[i+1, :, :] = map.values
-    
-        
-
-    ds_map = xr.DataArray(
-        data,
-        dims=("time", "lat", "lon"),
-        coords={
-            "time": time,   # reused directly
-            "lat": lat,
-            "lon": lon,
-        },
-        name="field",
-    )
-
-
-    
-#==============================
-
-    values = data.values
-    lat    = data.lat
-    lon    = data.lon
-
-    if cm == None:
-        if cl<0:
-            cm='seismic'
-        else:
-            cm='viridis'
-
-
-
-    # Midnight longitude = opposite the Sun
     subsolar_lon = _subsolar_longitude(hour)
-    midnight_lon = ((subsolar_lon + 180) % 360)
-    if midnight_lon > 180:
-        midnight_lon -= 360
+    midnight_lon = (subsolar_lon + 180.0) % 360.0
+    if midnight_lon > 180.0:
+        midnight_lon -= 360.0
 
-
-
-    if ax==None:
-    
+    if ax is None:
         fig = plt.figure(figsize=(10, 5))
-        ax = plt.axes()
-    
-        
-    ax = _apply_projection(
-        ax,
-        proj,
-        central_longitude=midnight_lon
-    )
+        ax = fig.add_subplot(
+            1, 1, 1,
+            projection=_get_projection(proj, central_longitude=midnight_lon),
+        )
+    else:
+        ax = _apply_projection(ax, proj, central_longitude=midnight_lon)
 
+    lat = np.asarray(data.lat)
+    lon = np.asarray(data.lon)
+    values = np.asarray(data.values)
 
-
-    
+    # Trim the poles to avoid contouring artefacts
     mask = (lat > -89.8) & (lat < 89.8)
 
     pcm = ax.contourf(
-        lon,
-        lat[mask],
-        values[mask,:],
+        lon, lat[mask], values[mask, :],
         transform=ccrs.PlateCarree(),
         cmap=cm,
     )
 
-
-
     ax.coastlines(color="black", linewidth=0.8, zorder=3)
     add_dayside_patches(ax, subsolar_lon)
-
     ax.set_global()
-
-    #t_str = t.strftime("%Y-%m-%d %H:%M")
     ax.set_title(f"UTC {t:%Y-%m-%d %H:%M}")
 
     if cobar:
-        cbar=plt.colorbar(pcm, ax=ax, orientation="horizontal", pad=0.05)
-        cbar.set_label(r'$B_'+field+'$ (nT)')
-    
-    plt.show()
+        cbar = plt.colorbar(pcm, ax=ax, orientation="horizontal", pad=0.05)
+        cbar.set_label(r'$B_' + field + '$ (nT)')
+
+    return pcm
