@@ -330,13 +330,13 @@ def map_gauss(gauss,ax=None,cm=None,
     pydt[0] = pd.to_datetime(gauss["time"][0].item()).to_pydatetime()
 
 
-    if movie:
-        for i, gauss_t in enumerate(gauss[1:]):
+    # if movie:
+    #     for i, gauss_t in enumerate(gauss[1:]):
             
-            map,,=_getfield_from_grid(gauss_t.values,lmax,vi)
-            pydt[i] = pd.to_datetime(gauss["time"][0].item()).to_pydatetime()
-            # compute spatial field
-            data[i+1, :, :] = map.values
+    #         map,,=_getfield_from_grid(gauss_t.values,lmax,vi)
+    #         pydt[i] = pd.to_datetime(gauss["time"][0].item()).to_pydatetime()
+    #         # compute spatial field
+    #         data[i+1, :, :] = map.values
     
         
 
